@@ -108,8 +108,13 @@ def verify_image_label(args):
                 lb = [x.split() for x in f.read().strip().splitlines() if len(x)]
                 if any(len(x) > 6 for x in lb) and (not keypoint):  # is segment
                     classes = np.array([x[0] for x in lb], dtype=np.float32)
-                    segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]  # (cls, xy1...)
-                    lb = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
+                    cxywh = np.array([x[:5] for x in lb], dtype=np.float32)
+                    # segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]  # (cls, xy1...)
+                    # segments = []
+                    segments = [np.array(x[5:], dtype=int) for x in lb]  # (cls, rle...)
+                    # masks = [rle2mask(x, label=1, shape=shape,downsample_ratio=1) for i, x in enumerate(rle)]
+                    lb = cxywh
+                    # lb = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
                 lb = np.array(lb, dtype=np.float32)
             nl = len(lb)
             if nl:
@@ -151,6 +156,27 @@ def verify_image_label(args):
         msg = f'{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}'
         return [None, None, None, None, None, nm, nf, ne, nc, msg]
 
+def rle2mask(mask_rle: np.ndarray, label=1, shape=(1080, 1920),target_shape = (340,640)):
+    """
+    mask_rle: run-length as string formatted (start length)
+    shape: (height,width) of array to return
+    Returns numpy array, 1 - mask, 0 - background
+
+    """
+    # s = mask_rle.split()
+    s=mask_rle.astype(int)
+    starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
+    starts -= 1
+    ends = starts + lengths
+    img = np.zeros(shape[0] * shape[1], dtype=np.uint8)
+    for lo, hi in zip(starts, ends):
+        img[lo:hi] = label
+    img = img.reshape(shape)
+
+    #
+    nh,nw = target_shape
+
+    return cv2.resize(img, (nw, nh))
 
 def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):
     """
@@ -191,6 +217,24 @@ def polygons2masks(imgsz, polygons, color, downsample_ratio=1):
     """
     return np.array([polygon2mask(imgsz, [x.reshape(-1)], color, downsample_ratio) for x in polygons])
 
+def rles2masks_overlap(rles, ori_shape,target_shape):
+    """Return a (640, 640) overlap mask."""
+    masks = np.zeros((target_shape[0], target_shape[1]),
+                     dtype=np.int32 if len(rles) > 255 else np.uint8)
+    areas = []
+    ms = []
+    for ri in range(len(rles)):
+        mask = rle2mask(rles[ri],label=1,shape=ori_shape,target_shape=target_shape)
+        ms.append(mask)
+        areas.append(mask.sum())
+    areas = np.asarray(areas)
+    index = np.argsort(-areas)
+    ms = np.array(ms)[index]
+    for i in range(len(rles)):
+        mask = ms[i] * (i + 1)
+        masks = masks + mask
+        masks = np.clip(masks, a_min=0, a_max=i + 1)
+    return masks, index
 
 def polygons2masks_overlap(imgsz, segments, downsample_ratio=1):
     """Return a (640, 640) overlap mask."""

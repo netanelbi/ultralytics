@@ -205,7 +205,7 @@ class Instances:
         This class does not perform input validation, and it assumes the inputs are well-formed.
     """
 
-    def __init__(self, bboxes, segments=None, keypoints=None, bbox_format='xywh', normalized=True) -> None:
+    def __init__(self, bboxes, segments=None, keypoints=None, bbox_format='xywh', normalized=True,masks=None) -> None:
         """
         Args:
             bboxes (ndarray): bboxes with shape [N, 4].
@@ -217,6 +217,12 @@ class Instances:
         self._bboxes = Bboxes(bboxes=bboxes, format=bbox_format)
         self.keypoints = keypoints
         self.normalized = normalized
+
+        if masks is not None:
+            self.masks=masks
+            segments = []
+        else:
+            self.masks=None
 
         if len(segments) > 0:
             # List[np.array(1000, 2)] * num_samples
@@ -300,12 +306,15 @@ class Instances:
         segments = self.segments[index] if len(self.segments) else self.segments
         keypoints = self.keypoints[index] if self.keypoints is not None else None
         bboxes = self.bboxes[index]
+        self.remove_masks(np.where(~index)[0])
+        # masks = self.masks[index] if self.masks is not None else None
         bbox_format = self._bboxes.format
         return Instances(
             bboxes=bboxes,
             segments=segments,
             keypoints=keypoints,
             bbox_format=bbox_format,
+            masks = self.masks,
             normalized=self.normalized,
         )
 
@@ -349,6 +358,21 @@ class Instances:
             self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
             self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
 
+    def remove_masks(self,indices):
+        """Remove masks from the instance"""
+        if self.masks is None:
+            return
+        for i in indices:
+            self.masks[self.masks == i+1] = 0
+        self.update_mask_index()
+    def update_mask_index(self):
+        """ Update the mask index to be consecutive"""
+        if self.masks is None:
+            return
+        curr_index = np.unique(self.masks)
+        for i, index in enumerate(curr_index):
+            if i!=index:
+                self.masks[self.masks == index] = i
     def remove_zero_area_boxes(self):
         """
         Remove zero-area boxes, i.e. after clipping some boxes may have zero width or height.
@@ -356,19 +380,27 @@ class Instances:
         This removes them.
         """
         good = self.bbox_areas > 0
+
         if not all(good):
             self._bboxes = self._bboxes[good]
             if len(self.segments):
                 self.segments = self.segments[good]
+            if len(self.masks):
+                self.remove_masks(np.where(~good)[0])
             if self.keypoints is not None:
                 self.keypoints = self.keypoints[good]
         return good
 
-    def update(self, bboxes, segments=None, keypoints=None):
+    def update(self, bboxes=None, segments=None, keypoints=None,masks=None):
         """Updates instance variables."""
-        self._bboxes = Bboxes(bboxes, format=self._bboxes.format)
+        if bboxes is not None:
+            self._bboxes = Bboxes(bboxes, format=self._bboxes.format)
         if segments is not None:
             self.segments = segments
+        if masks is not None:
+            self.masks = masks
+            self.update_mask_index()
+            # self.segments=[]
         if keypoints is not None:
             self.keypoints = keypoints
 
@@ -409,7 +441,12 @@ class Instances:
         cat_boxes = np.concatenate([ins.bboxes for ins in instances_list], axis=axis)
         cat_segments = np.concatenate([b.segments for b in instances_list], axis=axis)
         cat_keypoints = np.concatenate([b.keypoints for b in instances_list], axis=axis) if use_keypoint else None
-        return cls(cat_boxes, cat_segments, cat_keypoints, bbox_format, normalized)
+        #concat masks, takeinto account the color
+        if instances_list[0].masks is not None:
+            cat_masks = instances_list[0].masks
+        else:
+            cat_masks = None
+        return cls(cat_boxes, cat_segments, cat_keypoints, bbox_format, normalized,masks=cat_masks)
 
     @property
     def bboxes(self):

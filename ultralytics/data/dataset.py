@@ -13,7 +13,7 @@ from ultralytics.utils import LOCAL_RANK, NUM_THREADS, TQDM, colorstr, is_dir_wr
 
 from .augment import Compose, Format, Instances, LetterBox, classify_albumentations, classify_transforms, v8_transforms
 from .base import BaseDataset
-from .utils import HELP_URL, LOGGER, get_hash, img2label_paths, verify_image, verify_image_label
+from .utils import HELP_URL, LOGGER, get_hash, img2label_paths, verify_image, verify_image_label, rles2masks_overlap
 
 # Ultralytics dataset *.cache version, >= 1.0.0 for YOLOv8
 DATASET_CACHE_VERSION = '1.0.3'
@@ -163,12 +163,18 @@ class YOLODataset(BaseDataset):
         """Custom your label format here."""
         # NOTE: cls is not with bboxes now, classification and semantic segmentation need an independent cls label
         # We can make it also support classification and semantic segmentation by add or remove some dict keys there.
-        bboxes = label.pop('bboxes')
+
         segments = label.pop('segments')
+        ori_shape = label.get('ori_shape')
+        resized_shape = label.get('resized_shape')
+        masks, index = rles2masks_overlap(segments, ori_shape, resized_shape)
+        bboxes = label.pop('bboxes')[index]
+
+
         keypoints = label.pop('keypoints', None)
         bbox_format = label.pop('bbox_format')
         normalized = label.pop('normalized')
-        label['instances'] = Instances(bboxes, segments, keypoints, bbox_format=bbox_format, normalized=normalized)
+        label['instances'] = Instances(bboxes, segments, keypoints, masks = masks,bbox_format=bbox_format, normalized=normalized)
         return label
 
     @staticmethod
