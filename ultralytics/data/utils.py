@@ -251,7 +251,7 @@ def rles2masks_overlap(rles, ori_shape,target_shape):
         mask = ms[i] * (i + 1)
         masks = masks + mask
         masks = np.clip(masks, a_min=0, a_max=i + 1)
-    return masks,bboxes#, index
+    return masks,bboxes[index]#, index
 
 def polygons2masks_overlap(imgsz, segments, downsample_ratio=1):
     """Return a (640, 640) overlap mask."""

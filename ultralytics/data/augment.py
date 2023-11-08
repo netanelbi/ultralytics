@@ -911,9 +911,19 @@ class Format:
             if nl:
                 # masks, instances, cls = self._format_segments(instances, cls, w, h)
                 nw, nh = w // self.mask_ratio, h // self.mask_ratio
-                masks = instances.masks
-                masks = cv2.resize(masks, (nw, nh),cv2.INTER_NEAREST)
-                masks = masks[None]
+                all_masks = instances.masks
+
+                if nw != w and nh != h:
+                    masks = np.zeros((nh, nw), dtype=np.uint8 if nl < 255 else np.uint32)
+                    for i in range(nl):
+                        m = all_masks==i+1
+                        m = cv2.resize(m.astype(np.uint8), (nw, nh),cv2.INTER_NEAREST)>0.5
+                        masks[np.where(m)] = i + 1
+                else:
+                    masks = all_masks
+
+                # masks = cv2.resize(masks, (nw, nh),cv2.INTER_NEAREST)
+                masks = masks[None]  # (640, 640) -> (1, 640, 640)
 
                 masks = torch.from_numpy(masks)
             else:
