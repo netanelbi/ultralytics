@@ -13,7 +13,9 @@ from ultralytics.utils import LOCAL_RANK, NUM_THREADS, TQDM, colorstr, is_dir_wr
 
 from .augment import Compose, Format, Instances, LetterBox, classify_albumentations, classify_transforms, v8_transforms
 from .base import BaseDataset
-from .utils import HELP_URL, LOGGER, get_hash, img2label_paths, verify_image, verify_image_label, rles2masks_overlap
+from .utils import HELP_URL, LOGGER, get_hash, img2label_paths, verify_image, verify_image_label, rles2masks_overlap, \
+    mask_to_xyxy
+from ..utils.ops import xyxy2xywhn
 
 # Ultralytics dataset *.cache version, >= 1.0.0 for YOLOv8
 DATASET_CACHE_VERSION = '1.0.3'
@@ -167,8 +169,8 @@ class YOLODataset(BaseDataset):
         segments = label.pop('segments')
         ori_shape = label.get('ori_shape')
         resized_shape = label.get('resized_shape')
-        masks, index = rles2masks_overlap(segments, ori_shape, resized_shape)
-        bboxes = label.pop('bboxes')[index]
+        bboxes = label.pop('bboxes')
+        masks, bboxes = rles2masks_overlap(segments, ori_shape, resized_shape)
 
 
         keypoints = label.pop('keypoints', None)

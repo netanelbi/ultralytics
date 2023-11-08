@@ -912,7 +912,7 @@ class Format:
                 # masks, instances, cls = self._format_segments(instances, cls, w, h)
                 nw, nh = w // self.mask_ratio, h // self.mask_ratio
                 masks = instances.masks
-                masks = cv2.resize(masks, (nw, nh))
+                masks = cv2.resize(masks, (nw, nh),cv2.INTER_NEAREST)
                 masks = masks[None]
 
                 masks = torch.from_numpy(masks)
