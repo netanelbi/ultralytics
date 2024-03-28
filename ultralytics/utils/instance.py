@@ -26,9 +26,9 @@ to_4tuple = _ntuple(4)
 # `xyxy` means left top and right bottom
 # `xywh` means center x, center y and width, height(YOLO format)
 # `ltwh` means left top and width, height(COCO format)
-_formats = ['xyxy', 'xywh', 'ltwh']
+_formats = ["xyxy", "xywh", "ltwh"]
 
-__all__ = 'Bboxes',  # tuple or list
+__all__ = ("Bboxes",)  # tuple or list
 
 
 class Bboxes:
@@ -46,9 +46,9 @@ class Bboxes:
         This class does not handle normalization or denormalization of bounding boxes.
     """
 
-    def __init__(self, bboxes, format='xyxy') -> None:
+    def __init__(self, bboxes, format="xyxy") -> None:
         """Initializes the Bboxes class with bounding box data in a specified format."""
-        assert format in _formats, f'Invalid bounding box format: {format}, format must be one of {_formats}'
+        assert format in _formats, f"Invalid bounding box format: {format}, format must be one of {_formats}"
         bboxes = bboxes[None, :] if bboxes.ndim == 1 else bboxes
         assert bboxes.ndim == 2
         assert bboxes.shape[1] == 4
@@ -58,21 +58,21 @@ class Bboxes:
 
     def convert(self, format):
         """Converts bounding box format from one type to another."""
-        assert format in _formats, f'Invalid bounding box format: {format}, format must be one of {_formats}'
+        assert format in _formats, f"Invalid bounding box format: {format}, format must be one of {_formats}"
         if self.format == format:
             return
-        elif self.format == 'xyxy':
-            func = xyxy2xywh if format == 'xywh' else xyxy2ltwh
-        elif self.format == 'xywh':
-            func = xywh2xyxy if format == 'xyxy' else xywh2ltwh
+        elif self.format == "xyxy":
+            func = xyxy2xywh if format == "xywh" else xyxy2ltwh
+        elif self.format == "xywh":
+            func = xywh2xyxy if format == "xyxy" else xywh2ltwh
         else:
-            func = ltwh2xyxy if format == 'xyxy' else ltwh2xywh
+            func = ltwh2xyxy if format == "xyxy" else ltwh2xywh
         self.bboxes = func(self.bboxes)
         self.format = format
 
     def areas(self):
         """Return box areas."""
-        self.convert('xyxy')
+        self.convert("xyxy")
         return (self.bboxes[:, 2] - self.bboxes[:, 0]) * (self.bboxes[:, 3] - self.bboxes[:, 1])
 
     # def denormalize(self, w, h):
@@ -124,7 +124,7 @@ class Bboxes:
         return len(self.bboxes)
 
     @classmethod
-    def concatenate(cls, boxes_list: List['Bboxes'], axis=0) -> 'Bboxes':
+    def concatenate(cls, boxes_list: List["Bboxes"], axis=0) -> "Bboxes":
         """
         Concatenate a list of Bboxes objects into a single Bboxes object.
 
@@ -148,7 +148,7 @@ class Bboxes:
             return boxes_list[0]
         return cls(np.concatenate([b.bboxes for b in boxes_list], axis=axis))
 
-    def __getitem__(self, index) -> 'Bboxes':
+    def __getitem__(self, index) -> "Bboxes":
         """
         Retrieve a specific bounding box or a set of bounding boxes using indexing.
 
@@ -169,7 +169,7 @@ class Bboxes:
         if isinstance(index, int):
             return Bboxes(self.bboxes[index].view(1, -1))
         b = self.bboxes[index]
-        assert b.ndim == 2, f'Indexing on Bboxes with {index} failed to return a matrix!'
+        assert b.ndim == 2, f"Indexing on Bboxes with {index} failed to return a matrix!"
         return Bboxes(b)
 
 
@@ -205,7 +205,7 @@ class Instances:
         This class does not perform input validation, and it assumes the inputs are well-formed.
     """
 
-    def __init__(self, bboxes, segments=None, keypoints=None, bbox_format='xywh', normalized=True,masks=None) -> None:
+    def __init__(self, bboxes, segments=None, keypoints=None, bbox_format="xywh", normalized=True, masks=None) -> None:
         """
         Args:
             bboxes (ndarray): bboxes with shape [N, 4].
@@ -219,10 +219,10 @@ class Instances:
         self.normalized = normalized
 
         if masks is not None:
-            self.masks=masks
+            self.masks = masks
             segments = []
         else:
-            self.masks=None
+            self.masks = None
 
         if len(segments) > 0:
             # List[np.array(1000, 2)] * num_samples
@@ -279,7 +279,7 @@ class Instances:
 
     def add_padding(self, padw, padh):
         """Handle rect and mosaic situation."""
-        assert not self.normalized, 'you should add padding with absolute coordinates.'
+        assert not self.normalized, "you should add padding with absolute coordinates."
         self._bboxes.add(offset=(padw, padh, padw, padh))
         self.segments[..., 0] += padw
         self.segments[..., 1] += padh
@@ -287,7 +287,7 @@ class Instances:
             self.keypoints[..., 0] += padw
             self.keypoints[..., 1] += padh
 
-    def __getitem__(self, index) -> 'Instances':
+    def __getitem__(self, index) -> "Instances":
         """
         Retrieve a specific instance or a set of instances using indexing.
 
@@ -314,13 +314,13 @@ class Instances:
             segments=segments,
             keypoints=keypoints,
             bbox_format=bbox_format,
-            masks = self.masks,
+            masks=self.masks,
             normalized=self.normalized,
         )
 
     def flipud(self, h):
         """Flips the coordinates of bounding boxes, segments, and keypoints vertically."""
-        if self._bboxes.format == 'xyxy':
+        if self._bboxes.format == "xyxy":
             y1 = self.bboxes[:, 1].copy()
             y2 = self.bboxes[:, 3].copy()
             self.bboxes[:, 1] = h - y2
@@ -333,7 +333,7 @@ class Instances:
 
     def fliplr(self, w):
         """Reverses the order of the bounding boxes and segments horizontally."""
-        if self._bboxes.format == 'xyxy':
+        if self._bboxes.format == "xyxy":
             x1 = self.bboxes[:, 0].copy()
             x2 = self.bboxes[:, 2].copy()
             self.bboxes[:, 0] = w - x2
@@ -347,10 +347,10 @@ class Instances:
     def clip(self, w, h):
         """Clips bounding boxes, segments, and keypoints values to stay within image boundaries."""
         ori_format = self._bboxes.format
-        self.convert_bbox(format='xyxy')
+        self.convert_bbox(format="xyxy")
         self.bboxes[:, [0, 2]] = self.bboxes[:, [0, 2]].clip(0, w)
         self.bboxes[:, [1, 3]] = self.bboxes[:, [1, 3]].clip(0, h)
-        if ori_format != 'xyxy':
+        if ori_format != "xyxy":
             self.convert_bbox(format=ori_format)
         self.segments[..., 0] = self.segments[..., 0].clip(0, w)
         self.segments[..., 1] = self.segments[..., 1].clip(0, h)
@@ -358,21 +358,23 @@ class Instances:
             self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
             self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
 
-    def remove_masks(self,indices):
-        """Remove masks from the instance"""
+    def remove_masks(self, indices):
+        """Remove masks from the instance."""
         if self.masks is None:
             return
         for i in indices:
-            self.masks[self.masks == i+1] = 0
+            self.masks[self.masks == i + 1] = 0
         self.update_mask_index()
+
     def update_mask_index(self):
-        """ Update the mask index to be consecutive"""
+        """Update the mask index to be consecutive."""
         if self.masks is None:
             return
         curr_index = np.unique(self.masks)
         for i, index in enumerate(curr_index):
-            if i!=index:
+            if i != index:
                 self.masks[self.masks == index] = i
+
     def remove_zero_area_boxes(self):
         """
         Remove zero-area boxes, i.e. after clipping some boxes may have zero width or height.
@@ -391,7 +393,7 @@ class Instances:
                 self.keypoints = self.keypoints[good]
         return good
 
-    def update(self, bboxes=None, segments=None, keypoints=None,masks=None):
+    def update(self, bboxes=None, segments=None, keypoints=None, masks=None):
         """Updates instance variables."""
         if bboxes is not None:
             self._bboxes = Bboxes(bboxes, format=self._bboxes.format)
@@ -409,7 +411,7 @@ class Instances:
         return len(self.bboxes)
 
     @classmethod
-    def concatenate(cls, instances_list: List['Instances'], axis=0) -> 'Instances':
+    def concatenate(cls, instances_list: List["Instances"], axis=0) -> "Instances":
         """
         Concatenates a list of Instances objects into a single Instances object.
 
@@ -441,12 +443,12 @@ class Instances:
         cat_boxes = np.concatenate([ins.bboxes for ins in instances_list], axis=axis)
         cat_segments = np.concatenate([b.segments for b in instances_list], axis=axis)
         cat_keypoints = np.concatenate([b.keypoints for b in instances_list], axis=axis) if use_keypoint else None
-        #concat masks, takeinto account the color
+        # concat masks, takeinto account the color
         if instances_list[0].masks is not None:
             cat_masks = instances_list[0].masks
         else:
             cat_masks = None
-        return cls(cat_boxes, cat_segments, cat_keypoints, bbox_format, normalized,masks=cat_masks)
+        return cls(cat_boxes, cat_segments, cat_keypoints, bbox_format, normalized, masks=cat_masks)
 
     @property
     def bboxes(self):
