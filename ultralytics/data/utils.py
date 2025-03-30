@@ -214,11 +214,14 @@ def visualize_image_annotations(image_path, txt_path, label_map):
 def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):
     """
     Convert a list of polygons to a binary mask of the specified image size.
+    Each polygon should be a flattened array of coordinates [x1,y1,x2,y2,...].
+    Polygons containing negative x-coordinates are split at those points.
+    The function creates a single mask combining all valid polygon segments.
 
     Args:
         imgsz (tuple): The size of the image as (height, width).
-        polygons (list[np.ndarray]): A list of polygons. Each polygon is an array with shape [N, M], where
-                                     N is the number of polygons, and M is the number of points such that M % 2 = 0.
+        polygons (list[np.ndarray]): A list of polygons. Each polygon is a flattened array [x1,y1,x2,y2,...],
+                                     where N is the number of points. Negative x-values indicate segment splits.
         color (int, optional): The color value to fill in the polygons on the mask.
         downsample_ratio (int, optional): Factor by which to downsample the mask.
 
@@ -226,11 +229,28 @@ def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):
         (np.ndarray): A binary mask of the specified image size with the polygons filled in.
     """
     mask = np.zeros(imgsz, dtype=np.uint8)
-    polygons = np.asarray(polygons, dtype=np.int32)
-    polygons = polygons.reshape((polygons.shape[0], -1, 2))
-    cv2.fillPoly(mask, polygons, color=color)
+    processed_polygons = []
+    
+    # Process each polygon
+    for polygon in polygons:
+        polygon = np.asarray(polygon, dtype=np.int32)
+        if polygon.size < 2:  # Need at least one point (x,y)
+            continue
+            
+        # Reshape to pairs of coordinates
+        polygon = polygon.reshape(-1, 2)
+        
+        # Check if polygon needs splitting
+        if (polygon[:, 0] < 0).any():
+            split_indices = np.where(polygon[:, 0] < 0)[0]
+            split_polygons = np.split(polygon, split_indices)
+            valid_segments = [seg[~(seg[:, 0] < 0)] for seg in split_polygons if len(seg) > 0]
+            processed_polygons.extend(valid_segments)
+        else:
+            processed_polygons.append(polygon)
+                
+    cv2.fillPoly(mask, processed_polygons, color=color)
     nh, nw = (imgsz[0] // downsample_ratio, imgsz[1] // downsample_ratio)
-    # Note: fillPoly first then resize is trying to keep the same loss calculation method when mask-ratio=1
     return cv2.resize(mask, (nw, nh))
 
 

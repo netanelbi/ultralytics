@@ -66,26 +66,37 @@ class Profile(contextlib.ContextDecorator):
 def segment2box(segment, width=640, height=640):
     """
     Convert 1 segment label to 1 box label, applying inside-image constraint, i.e. (xy1, xy2, ...) to (xyxy).
+    Supports segments with NaN values which indicate separate parts of a multi-part segment.
 
     Args:
-        segment (torch.Tensor): The segment label.
+        segment (torch.Tensor | numpy.ndarray): The segment label, which may contain NaN values.
         width (int): The width of the image.
         height (int): The height of the image.
 
     Returns:
-        (np.ndarray): The minimum and maximum x and y values of the segment.
+        (numpy.ndarray): The minimum and maximum x and y values of the segment.
     """
     x, y = segment.T  # segment xy
+    # Handle NaN values which indicate separate parts of multi-part segments
+    valid = ~(np.isnan(x) | np.isnan(y))
+    x = x[valid]
+    y = y[valid]
+    
+    if len(x) == 0:
+        return np.zeros(4, dtype=segment.dtype)
+
     # any 3 out of 4 sides are outside the image, clip coordinates first, https://github.com/ultralytics/ultralytics/pull/18294
     if np.array([x.min() < 0, y.min() < 0, x.max() > width, y.max() > height]).sum() >= 3:
         x = x.clip(0, width)
         y = y.clip(0, height)
+    
     inside = (x >= 0) & (y >= 0) & (x <= width) & (y <= height)
     x = x[inside]
     y = y[inside]
+    
     return (
         np.array([x.min(), y.min(), x.max(), y.max()], dtype=segment.dtype)
-        if any(x)
+        if len(x) > 0
         else np.zeros(4, dtype=segment.dtype)
     )  # xyxy
 
@@ -620,6 +631,7 @@ def ltwh2xyxy(x):
 def segments2boxes(segments):
     """
     Convert segment labels to box labels, i.e. (cls, xy1, xy2, ...) to (cls, xywh).
+    Supports multi-part segments separated by 'nan nan' values.
 
     Args:
         segments (list): List of segments, each segment is a list of points, each point is a list of x, y coordinates.
@@ -630,7 +642,7 @@ def segments2boxes(segments):
     boxes = []
     for s in segments:
         x, y = s.T  # segment xy
-        boxes.append([x.min(), y.min(), x.max(), y.max()])  # cls, xyxy
+        boxes.append([np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y)])  # cls, xyxy
     return xyxy2xywh(np.array(boxes))  # cls, xywh
 
 
