@@ -244,11 +244,13 @@ def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):
         if (polygon[:, 0] < 0).any():
             split_indices = np.where(polygon[:, 0] < 0)[0]
             split_polygons = np.split(polygon, split_indices)
-            valid_segments = [seg[~(seg[:, 0] < 0)] for seg in split_polygons if len(seg) > 0]
-            processed_polygons.extend(valid_segments)
+            for seg in split_polygons:
+                if len(seg) > 0:
+                    valid_seg = seg[~(seg[:, 0] < 0)]
+                    if len(valid_seg) > 2:  # Need at least 3 points to form a polygon
+                        processed_polygons.append(valid_seg)
         else:
             processed_polygons.append(polygon)
-                
     cv2.fillPoly(mask, processed_polygons, color=color)
     nh, nw = (imgsz[0] // downsample_ratio, imgsz[1] // downsample_ratio)
     return cv2.resize(mask, (nw, nh))
