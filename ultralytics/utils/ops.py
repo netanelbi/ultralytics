@@ -648,25 +648,30 @@ def segments2boxes(segments):
 
 def resample_segments(segments, n=1000):
     """
-    Inputs a list of segments (n,2) and returns a list of segments (n,2) up-sampled to n points each.
+    Resamples each segment (an (m,2) array) to exactly n points.
+    If a segment contains [nan, nan] pairs (indicating multipart polygons), the
+    interpolation does not cross those gaps; instead, it outputs NaN for points
+    where the interpolation would use NaN values.
 
     Args:
-        segments (list): A list of (n,2) arrays, where n is the number of points in the segment.
-        n (int): Number of points to resample the segment to.
+        segments (list): A list of (m,2) numpy arrays.
+        n (int): Number of points to resample each segment to.
 
     Returns:
-        segments (list): The resampled segments.
+        list: The resampled segments.
     """
     for i, s in enumerate(segments):
         if len(s) == n:
             continue
-        s = np.concatenate((s, s[0:1, :]), axis=0)
-        x = np.linspace(0, len(s) - 1, n - len(s) if len(s) < n else n)
         xp = np.arange(len(s))
-        x = np.insert(x, np.searchsorted(x, xp), xp) if len(s) < n else x
-        segments[i] = (
-            np.concatenate([np.interp(x, xp, s[:, i]) for i in range(2)], dtype=np.float32).reshape(2, -1).T
-        )  # segment xy
+        x = np.linspace(0, len(s) - 1, n)
+        segments[i] = np.concatenate([
+            np.where(
+                np.isnan(s[:, j])[np.floor(x).astype(int)] | np.isnan(s[:, j])[np.ceil(x).astype(int)],
+                np.nan,
+                np.interp(x, xp, s[:, j])
+            ) for j in range(2)
+        ], dtype=np.float32).reshape(2, -1).T
     return segments
 
 
